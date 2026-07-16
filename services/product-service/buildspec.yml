@@ -1,0 +1,26 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-8)
+  build:
+    commands:
+      - echo Building the product-service Docker image...
+      - cd services/product-service
+      - docker build -t $ECR_REPO_URL:$IMAGE_TAG -t $ECR_REPO_URL:latest .
+  post_build:
+    commands:
+      - echo Pushing image to ECR...
+      - docker push $ECR_REPO_URL:$IMAGE_TAG
+      - docker push $ECR_REPO_URL:latest
+      - echo Writing image definitions file for the ECS deploy stage...
+      - printf '[{"name":"product-service","imageUri":"%s"}]' $ECR_REPO_URL:$IMAGE_TAG > imagedefinitions.json
+      - cp imagedefinitions.json ../../imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json
+  base-directory: .
